@@ -1,0 +1,450 @@
+[
+  {
+    "testName": "INTERNAL TEST-14 (XI JEE PHASE-1& 2)_18-Jan-2026",
+    "examDate": "2026-01-18T09:00",
+    "score": 116,
+    "maxMarks": 300,
+    "avg": 122.59,
+    "topper": 275,
+    "rank": 291,
+    "percentile": 50.93,
+    "physics": {
+      "score": 62,
+      "percentile": 69.37,
+      "avg": 49.17,
+      "topper": 100
+    },
+    "chemistry": {
+      "score": 33,
+      "percentile": 70.22,
+      "avg": 26.85,
+      "topper": 95
+    },
+    "maths": {
+      "score": 21,
+      "percentile": 17.6,
+      "avg": 46.57,
+      "topper": 100
+    }
+  },
+  {
+    "testName": "INTERNAL TEST-13 (XI JEE PHASE-1& 2)_28-Dec-2025",
+    "examDate": "2025-12-28T09:00",
+    "score": 126,
+    "maxMarks": 300,
+    "avg": 119.45,
+    "topper": 275,
+    "rank": 295,
+    "percentile": 57.64,
+    "physics": {
+      "score": 44,
+      "percentile": 54.32,
+      "avg": 42.79,
+      "topper": 100
+    },
+    "chemistry": {
+      "score": 24,
+      "percentile": 42.94,
+      "avg": 29.7,
+      "topper": 90
+    },
+    "maths": {
+      "score": 58,
+      "percentile": 68.3,
+      "avg": 46.97,
+      "topper": 100
+    }
+  },
+  {
+    "testName": "INTERNAL TEST-12 (XI JEE PHASE-1& 2)_07-Dec-2025",
+    "examDate": "2025-12-07T09:00",
+    "score": 115,
+    "maxMarks": 300,
+    "avg": 129.84,
+    "topper": 295,
+    "rank": 375,
+    "percentile": 44.67,
+    "physics": {
+      "score": 28,
+      "percentile": 34.76,
+      "avg": 40.35,
+      "topper": 100
+    },
+    "chemistry": {
+      "score": 39,
+      "percentile": 50.3,
+      "avg": 39.98,
+      "topper": 100
+    },
+    "maths": {
+      "score": 48,
+      "percentile": 53.11,
+      "avg": 49.51,
+      "topper": 100
+    }
+  },
+  {
+    "testName": "INTERNAL TEST-11 (XI JEE PHASE-1& 2)_16-Nov-2025",
+    "examDate": "2025-11-16T13:00",
+    "score": 141,
+    "maxMarks": 300,
+    "avg": 114.83,
+    "topper": 295,
+    "rank": 266,
+    "percentile": 68.3,
+    "physics": {
+      "score": 62,
+      "percentile": 87.92,
+      "avg": 35.28,
+      "topper": 100
+    },
+    "chemistry": {
+      "score": 29,
+      "percentile": 54.55,
+      "avg": 29.74,
+      "topper": 100
+    },
+    "maths": {
+      "score": 50,
+      "percentile": 52.27,
+      "avg": 49.8,
+      "topper": 100
+    }
+  },
+  {
+    "testName": "INTERNAL TEST-10 (XI JEE PHASE-1& 2)_12-Oct-2025",
+    "examDate": "2025-10-12T09:00",
+    "score": 51,
+    "maxMarks": 180,
+    "avg": 53.92,
+    "topper": 166,
+    "rank": 383,
+    "percentile": 53.13,
+    "physics": {
+      "score": 8,
+      "percentile": 37.3,
+      "avg": 15.17,
+      "topper": 58
+    },
+    "chemistry": {
+      "score": 28,
+      "percentile": 79.26,
+      "avg": 17.8,
+      "topper": 55
+    },
+    "maths": {
+      "score": 15,
+      "percentile": 40.25,
+      "avg": 20.94,
+      "topper": 60
+    }
+  },
+  {
+    "testName": "National Test-03 (IT-09)_11 JEE_22-Sep-25",
+    "examDate": "2025-09-22T16:00",
+    "score": 105,
+    "maxMarks": 300,
+    "avg": 112.62,
+    "topper": 300,
+    "rank": 417,
+    "percentile": 52.46,
+    "physics": {
+      "score": 46,
+      "percentile": 66.17,
+      "avg": 38.17,
+      "topper": 100
+    },
+    "chemistry": {
+      "score": 31,
+      "percentile": 46.63,
+      "avg": 35.71,
+      "topper": 100
+    },
+    "maths": {
+      "score": 28,
+      "percentile": 40,
+      "avg": 38.73,
+      "topper": 100
+    }
+  },
+  {
+    "testName": " INTERNAL TEST-8 (XI JEE PHASE-1& 2)_31-Aug-2025",
+    "examDate": "2025-08-31T09:00",
+    "score": 140,
+    "maxMarks": 300,
+    "avg": 116.39,
+    "topper": 277,
+    "rank": 240,
+    "percentile": 69.2,
+    "physics": {
+      "score": 50,
+      "percentile": 77.84,
+      "avg": 36.23,
+      "topper": 95
+    },
+    "chemistry": {
+      "score": 39,
+      "percentile": 55.28,
+      "avg": 37.71,
+      "topper": 100
+    },
+    "maths": {
+      "score": 51,
+      "percentile": 66.49,
+      "avg": 42.45,
+      "topper": 100
+    }
+  },
+  {
+    "testName": "National Test-02 (IT-07)_11 JEE",
+    "examDate": "2025-08-11T16:00",
+    "score": 60,
+    "maxMarks": 180,
+    "avg": 44.64,
+    "topper": 152,
+    "rank": 226,
+    "percentile": 75.57,
+    "physics": {
+      "score": 26,
+      "percentile": 82.52,
+      "avg": 15.03,
+      "topper": 60
+    },
+    "chemistry": {
+      "score": 31,
+      "percentile": 83.71,
+      "avg": 19.72,
+      "topper": 54
+    },
+    "maths": {
+      "score": 3,
+      "percentile": 27.9,
+      "avg": 9.89,
+      "topper": 54
+    }
+  },
+  {
+    "testName": "Internal Test-06 XI JEE_20-July",
+    "examDate": "2025-07-20T09:00",
+    "score": 104,
+    "maxMarks": 300,
+    "avg": 116.71,
+    "topper": 285,
+    "rank": 508,
+    "percentile": 43.03,
+    "physics": {
+      "score": 43,
+      "percentile": 36.29,
+      "avg": 53.25,
+      "topper": 100
+    },
+    "chemistry": {
+      "score": 34,
+      "percentile": 55.62,
+      "avg": 33.88,
+      "topper": 96
+    },
+    "maths": {
+      "score": 27,
+      "percentile": 47.64,
+      "avg": 29.59,
+      "topper": 90
+    }
+  },
+  {
+    "testName": "National Test-1 (IT-5)_XI JEE_30-June-2025",
+    "examDate": "2025-06-30T09:00",
+    "score": 79,
+    "maxMarks": 198,
+    "avg": 54.91,
+    "topper": 180,
+    "rank": 199,
+    "percentile": 79.73,
+    "physics": {
+      "score": 17,
+      "percentile": 45.85,
+      "avg": 20.9,
+      "topper": 66
+    },
+    "chemistry": {
+      "score": 35,
+      "percentile": 82.6,
+      "avg": 21.47,
+      "topper": 66
+    },
+    "maths": {
+      "score": 27,
+      "percentile": 89.56,
+      "avg": 12.54,
+      "topper": 59
+    }
+  },
+  {
+    "testName": "INTERNAL TEST-4 (XI JEE PHASE-1A, 1B, 1C)_15-June-2025",
+    "examDate": "2025-06-15T09:00",
+    "score": 138,
+    "maxMarks": 300,
+    "avg": 137.08,
+    "topper": 280,
+    "rank": 313,
+    "percentile": 49.29,
+    "physics": {
+      "score": 55,
+      "percentile": 55,
+      "avg": 51.61,
+      "topper": 100
+    },
+    "chemistry": {
+      "score": 49,
+      "percentile": 51.04,
+      "avg": 36.16,
+      "topper": 96
+    },
+    "maths": {
+      "score": 34,
+      "percentile": 34,
+      "avg": 49.31,
+      "topper": 100
+    }
+  },
+  {
+    "testName": "Internal Test-03 Phase 1A,1B,1C",
+    "examDate": "2025-06-01T09:00",
+    "score": 133,
+    "maxMarks": 300,
+    "avg": 109.02,
+    "topper": 261,
+    "rank": 198,
+    "percentile": 50.96,
+    "physics": {
+      "score": 36,
+      "percentile": 37.89,
+      "avg": 47.43,
+      "topper": 95
+    },
+    "chemistry": {
+      "score": 83,
+      "percentile": 83,
+      "avg": 42.12,
+      "topper": 100
+    },
+    "maths": {
+      "score": 14,
+      "percentile": 17.72,
+      "avg": 19.47,
+      "topper": 79
+    }
+  },
+  {
+    "testName": "JEE Internal Test-02_18-May-25",
+    "examDate": "2025-05-18T09:00",
+    "score": 111,
+    "maxMarks": 198,
+    "avg": 82.02,
+    "topper": 188,
+    "rank": 93,
+    "percentile": 59.04,
+    "physics": {
+      "score": 39,
+      "percentile": 60.94,
+      "avg": 17.56,
+      "topper": 64
+    },
+    "chemistry": {
+      "score": 43,
+      "percentile": 67.19,
+      "avg": 28.26,
+      "topper": 64
+    },
+    "maths": {
+      "score": 29,
+      "percentile": 43.94,
+      "avg": 36.2,
+      "topper": 66
+    }
+  },
+  {
+    "testName": " JEE_Internal Test -01 Ph-1_27-Apr-25",
+    "examDate": "2025-04-27T09:00",
+    "score": 220,
+    "maxMarks": 300,
+    "avg": 178.24,
+    "topper": 296,
+    "rank": 134,
+    "percentile": 74.32,
+    "physics": {
+      "score": 77,
+      "percentile": 77,
+      "avg": 54.1,
+      "topper": 100
+    },
+    "chemistry": {
+      "score": 75,
+      "percentile": 75,
+      "avg": 57.92,
+      "topper": 100
+    },
+    "maths": {
+      "score": 68,
+      "percentile": 68,
+      "avg": 66.21,
+      "topper": 100
+    }
+  },
+  {
+    "testName": "INTERNAL TEST-1_05-Apr-2026",
+    "examDate": "2026-04-05T09:00",
+    "score": 134,
+    "maxMarks": 300,
+    "avg": 121.99,
+    "topper": 275,
+    "rank": 378,
+    "percentile": 63.54,
+    "physics": {
+      "score": 47,
+      "percentile": 58.41,
+      "avg": 43.25,
+      "topper": 100
+    },
+    "chemistry": {
+      "score": 42,
+      "percentile": 51.55,
+      "avg": 42.3,
+      "topper": 96
+    },
+    "maths": {
+      "score": 45,
+      "percentile": 70.7,
+      "avg": 36.44,
+      "topper": 92
+    }
+  },
+  {
+    "testName": " INTERNAL TEST-00_29-Mar-2026",
+    "examDate": "2026-03-29T09:00",
+    "score": 92,
+    "maxMarks": 300,
+    "avg": 121.34,
+    "topper": 279,
+    "rank": 559,
+    "percentile": 31.11,
+    "physics": {
+      "score": 14,
+      "percentile": 32.47,
+      "avg": 26,
+      "topper": 100
+    },
+    "chemistry": {
+      "score": 28,
+      "percentile": 36.54,
+      "avg": 38.31,
+      "topper": 100
+    },
+    "maths": {
+      "score": 50,
+      "percentile": 32.84,
+      "avg": 56.88,
+      "topper": 100
+    }
+  }
+]
