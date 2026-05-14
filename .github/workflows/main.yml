@@ -18,7 +18,7 @@ jobs:
           python-version: '3.11'
 
        - name: Install dependencies
-        run: |
+         run: |
           pip install torch numpy --index-url https://download.pytorch.org/whl/cpu
           pip install onnx
       - name: Train and export
