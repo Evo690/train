@@ -4,6 +4,7 @@ import random
 
 import numpy as np
 import tensorflow as tf
+import tensorflowjs as tfjs
 
 # ------------------------------------------------------------
 # CONFIG
@@ -13,6 +14,7 @@ SEED = 42
 
 EPOCHS = 2500
 BATCH_SIZE = 32
+LEARNING_RATE = 1e-3
 
 random.seed(SEED)
 np.random.seed(SEED)
@@ -328,7 +330,7 @@ model = tf.keras.Sequential([
 model.compile(
 
     optimizer=tf.keras.optimizers.Adam(
-        learning_rate=1e-3
+        learning_rate=LEARNING_RATE
     ),
 
     loss="mse",
@@ -409,13 +411,9 @@ print(
     "\nExporting TensorFlow.js model..."
 )
 
-os.system(
-
-    "tensorflowjs_converter "
-    "--input_format=keras "
-    "output/ranknet.keras "
+tfjs.converters.save_keras_model(
+    model,
     "output/tfjs_model"
-
 )
 
 print(
