@@ -30,9 +30,17 @@ for student_data in personal_datasets:
 
 n_lookup = {k: np.mean(v) for k, v in n_lookup.items()}
 
+# Build max_marks lookup from personal data
+max_marks_lookup = {}
+for student_data in personal_datasets:
+    for test in student_data:
+        name = test["testName"]
+        if test.get("maxMarks"):
+            max_marks_lookup[name] = test["maxMarks"]
+
 # ── 3. Build leaderboard points ───────────────────────────────────────────────
 
-points = []
+points = []  # (x_norm, max_marks_norm, y)
 
 for test in lb_data:
     name = test["testName"]
@@ -40,15 +48,20 @@ for test in lb_data:
     topper = test.get("topper")
     lb = test.get("leaderboard", [])
 
-    if not avg or not topper or not lb or name not in n_lookup:
+    if not avg or not topper or not lb:
+        continue
+    if name not in n_lookup or name not in max_marks_lookup:
         continue
 
     N = n_lookup[name]
+    max_marks = max_marks_lookup[name]
+    max_marks_norm = max_marks / 300.0   # normalize to [0,1] using 300 as reference
+
     for entry in lb:
         x = (entry["score"] - avg) / (topper - avg)
         y = 1.0 - (entry["rank"] / N)
         if 0 < x <= 1.0 and 0 < y < 1.0:
-            points.append((x, y))
+            points.append((x, max_marks_norm, y))
 
 # ── 4. Build personal data points ─────────────────────────────────────────────
 
@@ -62,21 +75,26 @@ for student_data in personal_datasets:
             continue
 
         N = n_lookup.get(test["testName"])
-        if not N:
+        max_marks = test.get("maxMarks")
+        if not N or not max_marks:
             continue
 
         x = (test["score"] - lb_match["avg"]) / (lb_match["topper"] - lb_match["avg"])
         y = 1.0 - (test["rank"] / N)
+        max_marks_norm = max_marks / 300.0
+
         if 0 < x <= 1.0 and 0 < y < 1.0:
-            points.append((x, y))
+            points.append((x, max_marks_norm, y))
 
 print(f"Total training points: {len(points)}")
 
-xs = np.array([p[0] for p in points], dtype=np.float32)
-ys = np.array([p[1] for p in points], dtype=np.float32)
+xs      = np.array([p[0] for p in points], dtype=np.float32)
+ms      = np.array([p[1] for p in points], dtype=np.float32)
+ys      = np.array([p[2] for p in points], dtype=np.float32)
 
-print(f"x range: {xs.min():.3f} → {xs.max():.3f}")
-print(f"y (percentile) range: {(ys.min()*100):.1f}% → {(ys.max()*100):.1f}%")
+print(f"x range:         {xs.min():.3f} → {xs.max():.3f}")
+print(f"max_marks range: {(ms.min()*300):.0f} → {(ms.max()*300):.0f}")
+print(f"y range:         {(ys.min()*100):.1f}% → {(ys.max()*100):.1f}%")
 
 # ── 5. Define model ───────────────────────────────────────────────────────────
 
@@ -84,14 +102,10 @@ class RankNet(nn.Module):
     def __init__(self):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(1, 32),
-            nn.Tanh(),
-            nn.Linear(32, 32),
-            nn.Tanh(),
-            nn.Linear(32, 16),
-            nn.Tanh(),
-            nn.Linear(16, 1),
-            nn.Sigmoid()
+            nn.Linear(2, 32), nn.Tanh(),
+            nn.Linear(32, 32), nn.Tanh(),
+            nn.Linear(32, 16), nn.Tanh(),
+            nn.Linear(16, 1), nn.Sigmoid()
         )
 
     def forward(self, x):
@@ -99,15 +113,15 @@ class RankNet(nn.Module):
 
 # ── 6. Train ──────────────────────────────────────────────────────────────────
 
-X = torch.tensor(xs).unsqueeze(1)
+X = torch.tensor(np.stack([xs, ms], axis=1))
 Y = torch.tensor(ys).unsqueeze(1)
 
 dataset = TensorDataset(X, Y)
-loader = DataLoader(dataset, batch_size=32, shuffle=True)
+loader  = DataLoader(dataset, batch_size=32, shuffle=True)
 
-model = RankNet()
+model     = RankNet()
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-loss_fn = nn.MSELoss()
+loss_fn   = nn.MSELoss()
 
 EPOCHS = 3000
 for epoch in range(EPOCHS):
@@ -129,24 +143,41 @@ for epoch in range(EPOCHS):
 
 model.eval()
 with torch.no_grad():
-    preds = model(X).squeeze().numpy()
+    preds  = model(X).squeeze().numpy()
     errors = np.abs(preds - ys) * 100
 
+worst_idx = np.argmax(errors)
 print(f"\nFinal MAE:    {errors.mean():.2f} percentile points")
 print(f"Max error:    {errors.max():.2f} percentile points")
 print(f"Within ±3pts: {(errors < 3).mean()*100:.1f}% of points")
 print(f"Within ±5pts: {(errors < 5).mean()*100:.1f}% of points")
+print(f"Worst point — x: {xs[worst_idx]:.3f}, max_marks: {ms[worst_idx]*300:.0f}, actual: {ys[worst_idx]*100:.1f}%, predicted: {preds[worst_idx]*100:.1f}%, error: {errors[worst_idx]:.1f}pts")
 
-# ── 8. Save ───────────────────────────────────────────────────────────────────
+# ── 8. Save .pt + export .onnx ────────────────────────────────────────────────
 
 os.makedirs("output", exist_ok=True)
+
+avg_N = float(np.mean(list(n_lookup.values())))
+
 torch.save({
     "model_state": model.state_dict(),
     "meta": {
-        "x_range": [float(xs.min()), float(xs.max())],
-        "n_points": len(points),
-        "avg_N": float(np.mean(list(n_lookup.values())))
+        "x_range":   [float(xs.min()), float(xs.max())],
+        "n_points":  len(points),
+        "avg_N":     avg_N,
+        "max_marks_ref": 300
     }
 }, "output/ranknet.pt")
 
-print("Model saved → output/ranknet.pt")
+# Export ONNX
+dummy = torch.tensor([[0.5, 1.0]], dtype=torch.float32)
+torch.onnx.export(
+    model, dummy, "output/ranknet.onnx",
+    input_names=["x"],
+    output_names=["percentile"],
+    dynamic_axes={"x": {0: "batch"}}
+)
+
+print(f"\nAverage N across tests: {avg_N:.0f}")
+print("Saved → output/ranknet.pt")
+print("Saved → output/ranknet.onnx")
