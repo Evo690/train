@@ -27,7 +27,10 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install tensorflow tensorflowjs numpy
+          pip install numpy
+          pip install tensorflow==2.16.1
+          pip install protobuf==5.29.6
+          pip install tensorflowjs==4.22.0
 
       - name: Train model
         run: python train.py
