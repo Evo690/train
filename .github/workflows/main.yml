@@ -1,42 +1,50 @@
 name: Train RankNet
 
 on:
+
   push:
     paths:
-      - 'train.py'
-      - '*.json'
+      - "train.py"
+      - "*.json"
 
   workflow_dispatch:
 
 jobs:
+
   train:
 
     runs-on: ubuntu-latest
 
     steps:
 
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
           pip install tensorflow tensorflowjs numpy
 
-      - name: Train and export
+      - name: Train model
         run: python train.py
 
-      - name: List output
-        run: ls -lh output/
+      - name: Show output files
+        run: |
+          echo "=== OUTPUT FILES ==="
+          find output
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
+
         with:
           name: ranknet-models
+
           path: |
-            output/ranknet.pt
-            output/ranknet.onnx
-            output/ranknet.onnx.data
+            output/ranknet.keras
+            output/tfjs_model
+
           retention-days: 90
