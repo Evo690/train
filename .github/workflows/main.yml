@@ -19,7 +19,7 @@ jobs:
 
       - name: Install dependencies
         run: pip install torch numpy onnx --index-url https://download.pytorch.org/whl/cpu
-
+             pip install onnx
       - name: Train and export
         run: python train.py
 
