@@ -1,53 +1,37 @@
-name: Train RankNet
+name: Train and Export Model
 
+# Run on push to main branch or manually from the Actions tab
 on:
-
   push:
-    paths:
-      - "train.py"
-      - "*.json"
-
+    branches: [ "main", "master" ]
   workflow_dispatch:
 
 jobs:
-
-  train:
-
+  train-model:
     runs-on: ubuntu-latest
 
     steps:
-
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
-
         with:
-          python-version: "3.11"
+          python-version: '3.10'
 
       - name: Install dependencies
         run: |
-          pip install numpy
-          pip install tensorflow==2.16.1
-          pip install tensorflowjs==4.17.0
+          python -m pip install --upgrade pip
+          # Installing tensorflow and tensorflowjs
+          pip install tensorflow tensorflowjs numpy
 
-      - name: Train model
-        run: python train.py
-
-      - name: Show output files
+      - name: Run training script
         run: |
-          echo "=== OUTPUT FILES ==="
-          find output
+          python train.py
 
-      - name: Upload artifacts
+      - name: Upload TFJS Model Artifact
         uses: actions/upload-artifact@v4
-
         with:
-          name: ranknet-models
-
-          path: |
-            output/ranknet.keras
-            output/tfjs_model
-
-          retention-days: 90
+          name: browser-ready-model
+          path: output/tfjs_model/
+          retention-days: 14 # Keeps the file available to download for 14 days
