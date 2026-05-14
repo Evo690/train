@@ -1,0 +1,31 @@
+name: Train RankNet
+
+on:
+  push:
+    paths:
+      - 'train.py'
+      - '*.json'
+  workflow_dispatch:
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install torch numpy --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Train
+        run: python train.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ranknet-model
+          path: output/ranknet.pt
+          retention-days: 90
