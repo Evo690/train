@@ -4,7 +4,6 @@ import random
 
 import numpy as np
 import tensorflow as tf
-import tensorflowjs as tfjs
 
 # ------------------------------------------------------------
 # CONFIG
@@ -115,10 +114,6 @@ for student_data in personal_datasets:
 
 points = []
 
-# -----------------------------
-# LEADERBOARD POINTS
-# -----------------------------
-
 for test in lb_data:
 
     name = test.get("testName")
@@ -189,10 +184,6 @@ for test in lb_data:
                 difficulty_proxy,
                 y
             ])
-
-# -----------------------------
-# PERSONAL DATA POINTS
-# -----------------------------
 
 for student_data in personal_datasets:
 
@@ -345,7 +336,7 @@ model.summary()
 # TRAIN
 # ------------------------------------------------------------
 
-history = model.fit(
+model.fit(
 
     X,
     Y,
@@ -376,23 +367,8 @@ print(
     f"{errors.mean():.2f} percentile pts"
 )
 
-print(
-    f"Max error: "
-    f"{errors.max():.2f} percentile pts"
-)
-
-print(
-    f"Within ±3 pts: "
-    f"{(errors < 3).mean()*100:.1f}%"
-)
-
-print(
-    f"Within ±5 pts: "
-    f"{(errors < 5).mean()*100:.1f}%"
-)
-
 # ------------------------------------------------------------
-# SAVE KERAS MODEL
+# SAVE MODEL
 # ------------------------------------------------------------
 
 model.save(
@@ -404,15 +380,17 @@ print(
 )
 
 # ------------------------------------------------------------
-# EXPORT TENSORFLOW.JS
+# EXPORT TFJS
 # ------------------------------------------------------------
 
 print(
     "\nExporting TensorFlow.js model..."
 )
 
-tfjs.converters.save_keras_model(
-    model,
+os.system(
+    "tensorflowjs_converter "
+    "--input_format=keras "
+    "output/ranknet.keras "
     "output/tfjs_model"
 )
 
