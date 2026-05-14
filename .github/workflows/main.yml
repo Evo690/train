@@ -23,8 +23,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install torch numpy --index-url https://download.pytorch.org/whl/cpu
-          pip install onnx onnxscript
+          pip install tensorflow tensorflowjs numpy
 
       - name: Train and export
         run: python train.py
