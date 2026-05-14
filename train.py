@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 import os
+import onnx
 
 # ── 1. Load data ──────────────────────────────────────────────────────────────
 
@@ -40,7 +41,7 @@ for student_data in personal_datasets:
 
 # ── 3. Build leaderboard points ───────────────────────────────────────────────
 
-points = []  # (x_norm, max_marks_norm, y)
+points = []
 
 for test in lb_data:
     name = test["testName"]
@@ -55,7 +56,7 @@ for test in lb_data:
 
     N = n_lookup[name]
     max_marks = max_marks_lookup[name]
-    max_marks_norm = max_marks / 300.0   # normalize to [0,1] using 300 as reference
+    max_marks_norm = max_marks / 300.0
 
     for entry in lb:
         x = (entry["score"] - avg) / (topper - avg)
@@ -88,9 +89,9 @@ for student_data in personal_datasets:
 
 print(f"Total training points: {len(points)}")
 
-xs      = np.array([p[0] for p in points], dtype=np.float32)
-ms      = np.array([p[1] for p in points], dtype=np.float32)
-ys      = np.array([p[2] for p in points], dtype=np.float32)
+xs = np.array([p[0] for p in points], dtype=np.float32)
+ms = np.array([p[1] for p in points], dtype=np.float32)
+ys = np.array([p[2] for p in points], dtype=np.float32)
 
 print(f"x range:         {xs.min():.3f} → {xs.max():.3f}")
 print(f"max_marks range: {(ms.min()*300):.0f} → {(ms.max()*300):.0f}")
@@ -153,7 +154,7 @@ print(f"Within ±3pts: {(errors < 3).mean()*100:.1f}% of points")
 print(f"Within ±5pts: {(errors < 5).mean()*100:.1f}% of points")
 print(f"Worst point — x: {xs[worst_idx]:.3f}, max_marks: {ms[worst_idx]*300:.0f}, actual: {ys[worst_idx]*100:.1f}%, predicted: {preds[worst_idx]*100:.1f}%, error: {errors[worst_idx]:.1f}pts")
 
-# ── 8. Save .pt + export .onnx ────────────────────────────────────────────────
+# ── 8. Save ───────────────────────────────────────────────────────────────────
 
 os.makedirs("output", exist_ok=True)
 
@@ -162,14 +163,18 @@ avg_N = float(np.mean(list(n_lookup.values())))
 torch.save({
     "model_state": model.state_dict(),
     "meta": {
-        "x_range":   [float(xs.min()), float(xs.max())],
-        "n_points":  len(points),
-        "avg_N":     avg_N,
+        "x_range":       [float(xs.min()), float(xs.max())],
+        "n_points":      len(points),
+        "avg_N":         avg_N,
         "max_marks_ref": 300
     }
 }, "output/ranknet.pt")
 
-# Export ONNX
+print(f"\nAverage N across tests: {avg_N:.0f}")
+print("Saved → output/ranknet.pt")
+
+# ── 9. Export ONNX (single file, no external data) ───────────────────────────
+
 dummy = torch.tensor([[0.5, 1.0]], dtype=torch.float32)
 torch.onnx.export(
     model, dummy, "output/ranknet.onnx",
@@ -178,6 +183,7 @@ torch.onnx.export(
     dynamic_axes={"x": {0: "batch"}}
 )
 
-print(f"\nAverage N across tests: {avg_N:.0f}")
-print("Saved → output/ranknet.pt")
-print("Saved → output/ranknet.onnx")
+onnx_model = onnx.load("output/ranknet.onnx")
+onnx.save(onnx_model, "output/ranknet.onnx", save_as_external_data=False)
+
+print("Saved → output/ranknet.onnx (single file)")
