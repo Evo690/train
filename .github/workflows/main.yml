@@ -18,14 +18,16 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install torch numpy --index-url https://download.pytorch.org/whl/cpu
+        run: pip install torch numpy onnx --index-url https://download.pytorch.org/whl/cpu
 
-      - name: Train
+      - name: Train and export
         run: python train.py
 
-      - name: Upload artifact
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ranknet-model
-          path: output/ranknet.pt
+          name: ranknet-models
+          path: |
+            output/ranknet.pt
+            output/ranknet.onnx
           retention-days: 90
