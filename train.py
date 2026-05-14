@@ -4,11 +4,14 @@ import random
 from pathlib import Path
 
 import numpy as np
-import onnx
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, TensorDataset
+import onnx
 
+from torch.utils.data import (
+    DataLoader,
+    TensorDataset
+)
 
 # ------------------------------------------------------------
 # CONFIG
@@ -17,362 +20,490 @@ from torch.utils.data import DataLoader, TensorDataset
 DATA_DIR = Path(".")
 OUTPUT_DIR = Path("output")
 
-STUDENT_FILES = [
-    ("A", ["a.json", "A.json"]),
-    ("B", ["b.json", "B.json"]),
-    ("C", ["c.json", "C.json"]),
-]
-
-LB_FILES = ["lb.json", "LB.json"]
-
 SEED = 42
+
 EPOCHS = 2500
 BATCH_SIZE = 32
 LEARNING_RATE = 1e-3
 
+# ------------------------------------------------------------
+# SET SEED
+# ------------------------------------------------------------
+
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
 
 # ------------------------------------------------------------
-# UTIL
+# LOAD FILES
 # ------------------------------------------------------------
 
-def set_seed(seed: int = 42) -> None:
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
+with open("lb.json", "r", encoding="utf-8") as f:
+    lb_data = json.load(f)
 
+personal_datasets = []
 
-def load_json_any(base_dir: Path, candidates: list[str]):
-    for name in candidates:
-        path = base_dir / name
-        if path.exists():
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f), path
-    raise FileNotFoundError(f"None of these files were found: {candidates}")
+for filename in [
+    "a.json",
+    "b.json",
+    "c.json"
+]:
+    with open(filename, "r", encoding="utf-8") as f:
+        personal_datasets.append(json.load(f))
 
+print("Loaded all JSON files.")
 
-def safe_float(x, default=None):
-    try:
-        if x is None:
-            return default
-        return float(x)
-    except Exception:
-        return default
+# ------------------------------------------------------------
+# BUILD N LOOKUP
+# ------------------------------------------------------------
 
+n_lookup = {}
 
-def safe_int(x, default=None):
-    try:
-        if x is None:
-            return default
-        return int(x)
-    except Exception:
-        return default
+for student_data in personal_datasets:
 
+    for test in student_data:
+
+        score = test.get("score", 0)
+        percentile = test.get("percentile", 0)
+        rank = test.get("rank", 0)
+
+        if (
+            score == 0 or
+            percentile == 0 or
+            rank == 0
+        ):
+            continue
+
+        if percentile >= 100:
+            continue
+
+        test_name = test["testName"]
+
+        N = rank / (1 - percentile / 100)
+
+        if test_name not in n_lookup:
+            n_lookup[test_name] = []
+
+        n_lookup[test_name].append(N)
+
+n_lookup = {
+    k: float(np.mean(v))
+    for k, v in n_lookup.items()
+}
+
+print(f"Built N lookup for {len(n_lookup)} tests.")
+
+# ------------------------------------------------------------
+# MAX MARKS LOOKUP
+# ------------------------------------------------------------
+
+max_marks_lookup = {}
+
+for student_data in personal_datasets:
+
+    for test in student_data:
+
+        name = test["testName"]
+
+        max_marks = test.get("maxMarks")
+
+        if max_marks:
+            max_marks_lookup[name] = max_marks
+
+# ------------------------------------------------------------
+# BUILD TRAINING POINTS
+# ------------------------------------------------------------
+
+points = []
+
+# -----------------------------
+# LEADERBOARD POINTS
+# -----------------------------
+
+for test in lb_data:
+
+    name = test.get("testName")
+
+    avg = test.get("avg")
+    topper = test.get("topper")
+
+    leaderboard = test.get("leaderboard", [])
+
+    if (
+        not avg or
+        not topper or
+        not leaderboard
+    ):
+        continue
+
+    if topper <= avg:
+        continue
+
+    if name not in n_lookup:
+        continue
+
+    if name not in max_marks_lookup:
+        continue
+
+    N = n_lookup[name]
+
+    max_marks = max_marks_lookup[name]
+
+    max_marks_norm = max_marks / 300.0
+
+    difficulty_proxy = avg / max_marks
+
+    for entry in leaderboard:
+
+        score = entry.get("score")
+        rank = entry.get("rank")
+
+        if score is None or rank is None:
+            continue
+
+        x = (
+            (score - avg)
+            / (topper - avg)
+        )
+
+        y = 1.0 - (rank / N)
+
+        if (
+            0 < x <= 1.0 and
+            0 < y < 1.0
+        ):
+            points.append((
+                x,
+                max_marks_norm,
+                difficulty_proxy,
+                y
+            ))
+
+# -----------------------------
+# PERSONAL DATA POINTS
+# -----------------------------
+
+for student_data in personal_datasets:
+
+    for test in student_data:
+
+        score = test.get("score", 0)
+        percentile = test.get("percentile", 0)
+        rank = test.get("rank", 0)
+
+        if (
+            score == 0 or
+            percentile == 0 or
+            rank == 0
+        ):
+            continue
+
+        test_name = test["testName"]
+
+        lb_match = next(
+            (
+                l for l in lb_data
+                if l["testName"] == test_name
+            ),
+            None
+        )
+
+        if not lb_match:
+            continue
+
+        avg = lb_match.get("avg")
+        topper = lb_match.get("topper")
+
+        if (
+            not avg or
+            not topper
+        ):
+            continue
+
+        if topper <= avg:
+            continue
+
+        N = n_lookup.get(test_name)
+
+        if not N:
+            continue
+
+        max_marks = test.get("maxMarks")
+
+        if not max_marks:
+            continue
+
+        max_marks_norm = max_marks / 300.0
+
+        difficulty_proxy = avg / max_marks
+
+        x = (
+            (score - avg)
+            / (topper - avg)
+        )
+
+        y = 1.0 - (rank / N)
+
+        if (
+            0 < x <= 1.0 and
+            0 < y < 1.0
+        ):
+            points.append((
+                x,
+                max_marks_norm,
+                difficulty_proxy,
+                y
+            ))
+
+print(f"Total training points: {len(points)}")
+
+# ------------------------------------------------------------
+# BUILD NUMPY ARRAYS
+# ------------------------------------------------------------
+
+xs = np.array(
+    [p[0] for p in points],
+    dtype=np.float32
+)
+
+ms = np.array(
+    [p[1] for p in points],
+    dtype=np.float32
+)
+
+ds = np.array(
+    [p[2] for p in points],
+    dtype=np.float32
+)
+
+ys = np.array(
+    [p[3] for p in points],
+    dtype=np.float32
+)
+
+print(
+    f"x range: "
+    f"{xs.min():.3f} → {xs.max():.3f}"
+)
+
+print(
+    f"max_marks range: "
+    f"{(ms.min()*300):.0f} → {(ms.max()*300):.0f}"
+)
+
+print(
+    f"difficulty range: "
+    f"{ds.min():.3f} → {ds.max():.3f}"
+)
+
+print(
+    f"y range: "
+    f"{(ys.min()*100):.1f}% → {(ys.max()*100):.1f}%"
+)
+
+# ------------------------------------------------------------
+# MODEL
+# ------------------------------------------------------------
 
 class RankNet(nn.Module):
-    def __init__(self, input_dim: int = 3):
+
+    def __init__(self):
+
         super().__init__()
+
         self.net = nn.Sequential(
-            nn.Linear(input_dim, 32),
+
+            nn.Linear(3, 32),
             nn.Tanh(),
+
             nn.Linear(32, 32),
             nn.Tanh(),
+
             nn.Linear(32, 16),
             nn.Tanh(),
+
             nn.Linear(16, 1),
-            nn.Sigmoid(),
+            nn.Sigmoid()
         )
 
     def forward(self, x):
+
         return self.net(x)
 
+# ------------------------------------------------------------
+# TRAIN
+# ------------------------------------------------------------
 
-def main():
-    set_seed(SEED)
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+X = torch.tensor(
+    np.stack([xs, ms, ds], axis=1),
+    dtype=torch.float32
+)
 
-    # --------------------------------------------------------
-    # LOAD DATA
-    # --------------------------------------------------------
+Y = torch.tensor(
+    ys,
+    dtype=torch.float32
+).unsqueeze(1)
 
-    lb_data, lb_path = load_json_any(DATA_DIR, LB_FILES)
+dataset = TensorDataset(X, Y)
 
-    personal_datasets = []
-    for label, candidates in STUDENT_FILES:
-        data, path = load_json_any(DATA_DIR, candidates)
-        personal_datasets.append((label, data, path))
+loader = DataLoader(
+    dataset,
+    batch_size=BATCH_SIZE,
+    shuffle=True
+)
 
-    print(f"Loaded leaderboard: {lb_path.name}")
-    for label, _, path in personal_datasets:
-        print(f"Loaded student {label}: {path.name}")
+model = RankNet()
 
-    # --------------------------------------------------------
-    # BUILD LOOKUPS
-    # --------------------------------------------------------
+optimizer = torch.optim.Adam(
+    model.parameters(),
+    lr=LEARNING_RATE
+)
 
-    # Estimate total student count N for each test from known rank/percentile pairs:
-    # percentile = 100 * (1 - rank/N)
-    # => N = rank / (1 - percentile/100)
-    n_lookup = {}
+loss_fn = nn.MSELoss()
 
-    max_marks_lookup = {}
-    avg_lookup = {}
-    topper_lookup = {}
+for epoch in range(EPOCHS):
 
-    for _, student_data, _ in personal_datasets:
-        for test in student_data:
-            name = test.get("testName")
-            score = safe_float(test.get("score"), 0.0)
-            pct = safe_float(test.get("percentile"), 0.0)
-            rank = safe_float(test.get("rank"), 0.0)
-            max_marks = safe_float(test.get("maxMarks"), None)
+    model.train()
 
-            if name and max_marks and max_marks > 0:
-                max_marks_lookup[name] = max_marks
+    total_loss = 0.0
 
-            if name and score > 0 and pct > 0 and rank > 0 and pct < 100:
-                N = rank / (1.0 - (pct / 100.0))
-                n_lookup.setdefault(name, []).append(N)
+    for xb, yb in loader:
 
-    n_lookup = {k: float(np.mean(v)) for k, v in n_lookup.items() if v}
+        pred = model(xb)
 
-    for item in lb_data:
-        name = item.get("testName")
-        if not name:
-            continue
-        avg = safe_float(item.get("avg"), None)
-        topper = safe_float(item.get("topper"), None)
-        if avg is not None and avg > 0:
-            avg_lookup[name] = avg
-        if topper is not None and topper > 0:
-            topper_lookup[name] = topper
+        loss = loss_fn(pred, yb)
 
-    # --------------------------------------------------------
-    # BUILD TRAINING POINTS
-    # Target:
-    #   y = percentile-like value in [0,1]
-    #
-    # Features:
-    #   x1 = normalized score strength relative to avg/topper
-    #   x2 = max marks normalized
-    #   x3 = paper difficulty proxy (avg / max_marks)
-    # --------------------------------------------------------
+        optimizer.zero_grad()
 
-    points = []
+        loss.backward()
 
-    # 1) Leaderboard points
-    for test in lb_data:
-        name = test.get("testName")
-        avg = safe_float(test.get("avg"), None)
-        topper = safe_float(test.get("topper"), None)
-        lb = test.get("leaderboard", [])
+        optimizer.step()
 
-        if not name or avg is None or topper is None:
-            continue
-        if avg <= 0 or topper <= 0 or topper <= avg:
-            continue
-        if name not in n_lookup:
-            continue
-        if name not in max_marks_lookup:
-            continue
-        if not lb:
-            continue
+        total_loss += loss.item()
 
-        N = n_lookup[name]
-        max_marks = max_marks_lookup[name]
+    if (
+        (epoch + 1) % 250 == 0 or
+        epoch == 0
+    ):
 
-        x2 = max_marks / 300.0
-        x3 = avg / max_marks if max_marks > 0 else 0.0
+        model.eval()
 
-        for entry in lb:
-            score = safe_float(entry.get("score"), None)
-            rank = safe_float(entry.get("rank"), None)
+        with torch.no_grad():
 
-            if score is None or rank is None:
-                continue
+            mae = (
+                model(X) - Y
+            ).abs().mean().item()
 
-            x1 = (score - avg) / (topper - avg)
-            y = 1.0 - (rank / N)
+        print(
+            f"Epoch {epoch+1:4d} | "
+            f"Loss: {total_loss:.6f} | "
+            f"MAE: {mae*100:.2f} percentile pts"
+        )
 
-            if 0.0 < x1 <= 1.0 and 0.0 < y < 1.0:
-                points.append((x1, x2, x3, y))
+# ------------------------------------------------------------
+# EVALUATE
+# ------------------------------------------------------------
 
-    # 2) Personal student points
-    for _, student_data, _ in personal_datasets:
-        for test in student_data:
-            name = test.get("testName")
-            score = safe_float(test.get("score"), 0.0)
-            pct = safe_float(test.get("percentile"), 0.0)
-            rank = safe_float(test.get("rank"), 0.0)
-            max_marks = safe_float(test.get("maxMarks"), None)
+model.eval()
 
-            if not name or max_marks is None or max_marks <= 0:
-                continue
-            if score <= 0 or pct <= 0 or rank <= 0 or pct >= 100:
-                continue
+with torch.no_grad():
 
-            avg = avg_lookup.get(name)
-            topper = topper_lookup.get(name)
-            N = n_lookup.get(name)
+    preds = model(X).squeeze().numpy()
 
-            if avg is None or topper is None or N is None:
-                continue
-            if topper <= avg:
-                continue
+errors = np.abs(preds - ys) * 100
 
-            x1 = (score - avg) / (topper - avg)
-            x2 = max_marks / 300.0
-            x3 = avg / max_marks
-            y = 1.0 - (rank / N)
+print(
+    f"\nFinal MAE: "
+    f"{errors.mean():.2f} percentile pts"
+)
 
-            if 0.0 < x1 <= 1.0 and 0.0 < y < 1.0:
-                points.append((x1, x2, x3, y))
+print(
+    f"Max error: "
+    f"{errors.max():.2f} percentile pts"
+)
 
-    if not points:
-        raise RuntimeError("No training points found. Check your input JSON files.")
+print(
+    f"Within ±3 pts: "
+    f"{(errors < 3).mean()*100:.1f}%"
+)
 
-    print(f"Total training points: {len(points)}")
+print(
+    f"Within ±5 pts: "
+    f"{(errors < 5).mean()*100:.1f}%"
+)
 
-    xs = np.array([p[0] for p in points], dtype=np.float32)
-    ms = np.array([p[1] for p in points], dtype=np.float32)
-    ds = np.array([p[2] for p in points], dtype=np.float32)
-    ys = np.array([p[3] for p in points], dtype=np.float32)
+# ------------------------------------------------------------
+# SAVE PT MODEL
+# ------------------------------------------------------------
 
-    print(f"x range: {xs.min():.3f} → {xs.max():.3f}")
-    print(f"max_marks range: {(ms.min() * 300):.0f} → {(ms.max() * 300):.0f}")
-    print(f"difficulty proxy range: {ds.min():.3f} → {ds.max():.3f}")
-    print(f"y range: {(ys.min() * 100):.1f}% → {(ys.max() * 100):.1f}%")
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    # --------------------------------------------------------
-    # TRAIN
-    # --------------------------------------------------------
+avg_N = float(
+    np.mean(list(n_lookup.values()))
+)
 
-    X = torch.tensor(np.stack([xs, ms, ds], axis=1), dtype=torch.float32)
-    Y = torch.tensor(ys, dtype=torch.float32).unsqueeze(1)
+torch.save({
 
-    dataset = TensorDataset(X, Y)
-    loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
+    "model_state": model.state_dict(),
 
-    model = RankNet(input_dim=3)
-    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
-    loss_fn = nn.MSELoss()
+    "meta": {
 
-    for epoch in range(EPOCHS):
-        model.train()
-        total_loss = 0.0
+        "input_dim": 3,
 
-        for xb, yb in loader:
-            pred = model(xb)
-            loss = loss_fn(pred, yb)
+        "avg_N": avg_N,
 
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+        "feature_names": [
+            "score_strength",
+            "max_marks_norm",
+            "difficulty_proxy"
+        ]
+    }
 
-            total_loss += loss.item() * xb.size(0)
+}, OUTPUT_DIR / "ranknet.pt")
 
-        if (epoch + 1) % 250 == 0 or epoch == 0:
-            model.eval()
-            with torch.no_grad():
-                pred_all = model(X)
-                mae = (pred_all - Y).abs().mean().item()
-            avg_loss = total_loss / len(dataset)
-            print(
-                f"Epoch {epoch + 1:4d} | "
-                f"Loss: {avg_loss:.6f} | "
-                f"MAE: {mae * 100:.2f} percentile pts"
-            )
+print(
+    "\nSaved → output/ranknet.pt"
+)
 
-    # --------------------------------------------------------
-    # EVALUATE
-    # --------------------------------------------------------
+# ------------------------------------------------------------
+# EXPORT SINGLE-FILE ONNX
+# ------------------------------------------------------------
 
-    model.eval()
-    with torch.no_grad():
-        preds = model(X).squeeze().numpy()
+dummy = torch.tensor(
+    [[0.5, 1.0, 0.5]],
+    dtype=torch.float32
+)
 
-    errors = np.abs(preds - ys) * 100
+onnx_path = OUTPUT_DIR / "ranknet.onnx"
 
-    worst_idx = int(np.argmax(errors))
+torch.onnx.export(
 
-    print(f"\nFinal MAE: {errors.mean():.2f} percentile pts")
-    print(f"Max error: {errors.max():.2f} percentile pts")
-    print(f"Within ±3 pts: {(errors < 3).mean() * 100:.1f}%")
-    print(f"Within ±5 pts: {(errors < 5).mean() * 100:.1f}%")
-    print(
-        "Worst point — "
-        f"x: {xs[worst_idx]:.3f}, "
-        f"max_marks: {ms[worst_idx] * 300:.0f}, "
-        f"difficulty: {ds[worst_idx]:.3f}, "
-        f"actual: {ys[worst_idx] * 100:.1f}%, "
-        f"predicted: {preds[worst_idx] * 100:.1f}%, "
-        f"error: {errors[worst_idx]:.1f} pts"
-    )
+    model,
+    dummy,
 
-    # --------------------------------------------------------
-    # SAVE PYTORCH MODEL
-    # --------------------------------------------------------
+    str(onnx_path),
 
-    avg_N = float(np.mean(list(n_lookup.values()))) if n_lookup else 0.0
+    export_params=True,
 
-    torch.save(
-        {
-            "model_state": model.state_dict(),
-            "meta": {
-                "input_dim": 3,
-                "n_points": len(points),
-                "avg_N": avg_N,
-                "max_marks_ref": 300,
-                "feature_names": [
-                    "score_strength",
-                    "max_marks_norm",
-                    "difficulty_proxy",
-                ],
-            },
-        },
-        OUTPUT_DIR / "ranknet.pt",
-    )
+    opset_version=18,
 
-    print("\nSaved → output/ranknet.pt")
+    do_constant_folding=True,
 
-    # --------------------------------------------------------
-    # EXPORT ONNX + EXTERNAL DATA FILE
-    # --------------------------------------------------------
+    input_names=["x"],
 
-    dummy = torch.tensor([[0.5, 1.0, 0.5]], dtype=torch.float32)
+    output_names=["percentile"],
 
-    onnx_path = OUTPUT_DIR / "ranknet.onnx"
-    onnx_data_name = "ranknet.onnx.data"
+    dynamo=False
+)
 
-    torch.onnx.export(
-        model,
-        dummy,
-        str(onnx_path),
-        export_params=True,
-        opset_version=18,
-        do_constant_folding=True,
-        input_names=["x"],
-        output_names=["percentile"],
-        dynamo=False,
-    )
+print(
+    "Saved → output/ranknet.onnx"
+)
 
-    # Force weights into an external .data file so browser-side loaders can fetch it.
-    onnx_model = onnx.load(str(onnx_path))
-    onnx.save_model(
-        onnx_model,
-        str(onnx_path),
-        save_as_external_data=True,
-        all_tensors_to_one_file=True,
-        location=onnx_data_name,
-        size_threshold=0,
-        convert_attribute=False,
-    )
+print(
+    f"\nAverage N estimate: {avg_N:.0f}"
+)
 
-    print("Saved → output/ranknet.onnx")
-    print("Saved → output/ranknet.onnx.data")
-
-    print(f"\nAverage N estimate: {avg_N:.0f}")
-    print("Training complete.")
-
-
-if __name__ == "__main__":
-    main()
+print(
+    "Training complete."
+)
