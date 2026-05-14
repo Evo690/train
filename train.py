@@ -429,9 +429,8 @@ print(
     f"\nAverage N estimate: {avg_N:.0f}"
 )
 
-print(
-    "Training complete."
-)import json
+print("Training complete.")
+import json
 import numpy as np
 import torch
 import torch.nn as nn
