@@ -5,12 +5,16 @@ on:
     paths:
       - 'train.py'
       - '*.json'
+
   workflow_dispatch:
 
 jobs:
   train:
+
     runs-on: ubuntu-latest
+
     steps:
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
@@ -25,6 +29,9 @@ jobs:
       - name: Train and export
         run: python train.py
 
+      - name: List output
+        run: ls -lh output/
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -32,4 +39,5 @@ jobs:
           path: |
             output/ranknet.pt
             output/ranknet.onnx
+            output/ranknet.onnx.data
           retention-days: 90
