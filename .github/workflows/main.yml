@@ -1,6 +1,5 @@
 name: Train and Export Model
 
-# Run on push to main branch or manually from the Actions tab
 on:
   push:
     branches: [ "main", "master" ]
@@ -22,8 +21,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # Installing tensorflow and tensorflowjs
-          pip install tensorflow tensorflowjs numpy
+          # Pinning versions avoids the Protobuf / Decision Forests bug
+          pip install tensorflow==2.15.0 tensorflowjs==4.17.0 numpy
 
       - name: Run training script
         run: |
@@ -34,4 +33,4 @@ jobs:
         with:
           name: browser-ready-model
           path: output/tfjs_model/
-          retention-days: 14 # Keeps the file available to download for 14 days
+          retention-days: 14
