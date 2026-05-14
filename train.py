@@ -1,57 +1,49 @@
 import json
 import os
 import random
-from pathlib import Path
 
 import numpy as np
-import torch
-import torch.nn as nn
-import onnx
-
-from torch.utils.data import (
-    DataLoader,
-    TensorDataset
-)
+import tensorflow as tf
 
 # ------------------------------------------------------------
 # CONFIG
 # ------------------------------------------------------------
 
-DATA_DIR = Path(".")
-OUTPUT_DIR = Path("output")
-
 SEED = 42
 
 EPOCHS = 2500
 BATCH_SIZE = 32
-LEARNING_RATE = 1e-3
-
-# ------------------------------------------------------------
-# SET SEED
-# ------------------------------------------------------------
 
 random.seed(SEED)
 np.random.seed(SEED)
-torch.manual_seed(SEED)
+tf.random.set_seed(SEED)
+
+os.makedirs("output", exist_ok=True)
 
 # ------------------------------------------------------------
-# LOAD FILES
+# LOAD DATA
 # ------------------------------------------------------------
 
 with open("lb.json", "r", encoding="utf-8") as f:
     lb_data = json.load(f)
 
-personal_datasets = []
-
-for filename in [
+student_files = [
     "a.json",
     "b.json",
     "c.json"
-]:
-    with open(filename, "r", encoding="utf-8") as f:
-        personal_datasets.append(json.load(f))
+]
 
-print("Loaded all JSON files.")
+personal_datasets = []
+
+for filename in student_files:
+
+    with open(filename, "r", encoding="utf-8") as f:
+
+        personal_datasets.append(
+            json.load(f)
+        )
+
+print("Loaded all datasets.")
 
 # ------------------------------------------------------------
 # BUILD N LOOKUP
@@ -77,24 +69,29 @@ for student_data in personal_datasets:
         if percentile >= 100:
             continue
 
-        test_name = test["testName"]
+        name = test["testName"]
 
-        N = rank / (1 - percentile / 100)
+        N = rank / (
+            1 - percentile / 100
+        )
 
-        if test_name not in n_lookup:
-            n_lookup[test_name] = []
+        if name not in n_lookup:
+            n_lookup[name] = []
 
-        n_lookup[test_name].append(N)
+        n_lookup[name].append(N)
 
 n_lookup = {
     k: float(np.mean(v))
     for k, v in n_lookup.items()
 }
 
-print(f"Built N lookup for {len(n_lookup)} tests.")
+print(
+    f"Built N lookup for "
+    f"{len(n_lookup)} tests."
+)
 
 # ------------------------------------------------------------
-# MAX MARKS LOOKUP
+# BUILD MAX MARKS LOOKUP
 # ------------------------------------------------------------
 
 max_marks_lookup = {}
@@ -127,7 +124,10 @@ for test in lb_data:
     avg = test.get("avg")
     topper = test.get("topper")
 
-    leaderboard = test.get("leaderboard", [])
+    leaderboard = test.get(
+        "leaderboard",
+        []
+    )
 
     if (
         not avg or
@@ -149,16 +149,23 @@ for test in lb_data:
 
     max_marks = max_marks_lookup[name]
 
-    max_marks_norm = max_marks / 300.0
+    max_marks_norm = (
+        max_marks / 300.0
+    )
 
-    difficulty_proxy = avg / max_marks
+    difficulty_proxy = (
+        avg / max_marks
+    )
 
     for entry in leaderboard:
 
         score = entry.get("score")
         rank = entry.get("rank")
 
-        if score is None or rank is None:
+        if (
+            score is None or
+            rank is None
+        ):
             continue
 
         x = (
@@ -166,18 +173,20 @@ for test in lb_data:
             / (topper - avg)
         )
 
-        y = 1.0 - (rank / N)
+        y = 1.0 - (
+            rank / N
+        )
 
         if (
             0 < x <= 1.0 and
             0 < y < 1.0
         ):
-            points.append((
+            points.append([
                 x,
                 max_marks_norm,
                 difficulty_proxy,
                 y
-            ))
+            ])
 
 # -----------------------------
 # PERSONAL DATA POINTS
@@ -228,189 +237,137 @@ for student_data in personal_datasets:
         if not N:
             continue
 
-        max_marks = test.get("maxMarks")
+        max_marks = test.get(
+            "maxMarks"
+        )
 
         if not max_marks:
             continue
 
-        max_marks_norm = max_marks / 300.0
+        max_marks_norm = (
+            max_marks / 300.0
+        )
 
-        difficulty_proxy = avg / max_marks
+        difficulty_proxy = (
+            avg / max_marks
+        )
 
         x = (
             (score - avg)
             / (topper - avg)
         )
 
-        y = 1.0 - (rank / N)
+        y = 1.0 - (
+            rank / N
+        )
 
         if (
             0 < x <= 1.0 and
             0 < y < 1.0
         ):
-            points.append((
+            points.append([
                 x,
                 max_marks_norm,
                 difficulty_proxy,
                 y
-            ))
+            ])
 
-print(f"Total training points: {len(points)}")
+print(
+    f"Total training points: "
+    f"{len(points)}"
+)
 
 # ------------------------------------------------------------
-# BUILD NUMPY ARRAYS
+# BUILD ARRAYS
 # ------------------------------------------------------------
 
-xs = np.array(
-    [p[0] for p in points],
+points = np.array(
+    points,
     dtype=np.float32
 )
 
-ms = np.array(
-    [p[1] for p in points],
-    dtype=np.float32
-)
-
-ds = np.array(
-    [p[2] for p in points],
-    dtype=np.float32
-)
-
-ys = np.array(
-    [p[3] for p in points],
-    dtype=np.float32
-)
+X = points[:, :3]
+Y = points[:, 3]
 
 print(
-    f"x range: "
-    f"{xs.min():.3f} → {xs.max():.3f}"
-)
-
-print(
-    f"max_marks range: "
-    f"{(ms.min()*300):.0f} → {(ms.max()*300):.0f}"
-)
-
-print(
-    f"difficulty range: "
-    f"{ds.min():.3f} → {ds.max():.3f}"
-)
-
-print(
-    f"y range: "
-    f"{(ys.min()*100):.1f}% → {(ys.max()*100):.1f}%"
+    f"Feature shape: {X.shape}"
 )
 
 # ------------------------------------------------------------
 # MODEL
 # ------------------------------------------------------------
 
-class RankNet(nn.Module):
+model = tf.keras.Sequential([
 
-    def __init__(self):
+    tf.keras.layers.Input(
+        shape=(3,)
+    ),
 
-        super().__init__()
+    tf.keras.layers.Dense(
+        32,
+        activation="tanh"
+    ),
 
-        self.net = nn.Sequential(
+    tf.keras.layers.Dense(
+        32,
+        activation="tanh"
+    ),
 
-            nn.Linear(3, 32),
-            nn.Tanh(),
+    tf.keras.layers.Dense(
+        16,
+        activation="tanh"
+    ),
 
-            nn.Linear(32, 32),
-            nn.Tanh(),
+    tf.keras.layers.Dense(
+        1,
+        activation="sigmoid"
+    )
 
-            nn.Linear(32, 16),
-            nn.Tanh(),
+])
 
-            nn.Linear(16, 1),
-            nn.Sigmoid()
-        )
+model.compile(
 
-    def forward(self, x):
+    optimizer=tf.keras.optimizers.Adam(
+        learning_rate=1e-3
+    ),
 
-        return self.net(x)
+    loss="mse",
+
+    metrics=["mae"]
+
+)
+
+model.summary()
 
 # ------------------------------------------------------------
 # TRAIN
 # ------------------------------------------------------------
 
-X = torch.tensor(
-    np.stack([xs, ms, ds], axis=1),
-    dtype=torch.float32
-)
+history = model.fit(
 
-Y = torch.tensor(
-    ys,
-    dtype=torch.float32
-).unsqueeze(1)
+    X,
+    Y,
 
-dataset = TensorDataset(X, Y)
+    epochs=EPOCHS,
 
-loader = DataLoader(
-    dataset,
     batch_size=BATCH_SIZE,
-    shuffle=True
+
+    verbose=0
+
 )
-
-model = RankNet()
-
-optimizer = torch.optim.Adam(
-    model.parameters(),
-    lr=LEARNING_RATE
-)
-
-loss_fn = nn.MSELoss()
-
-for epoch in range(EPOCHS):
-
-    model.train()
-
-    total_loss = 0.0
-
-    for xb, yb in loader:
-
-        pred = model(xb)
-
-        loss = loss_fn(pred, yb)
-
-        optimizer.zero_grad()
-
-        loss.backward()
-
-        optimizer.step()
-
-        total_loss += loss.item()
-
-    if (
-        (epoch + 1) % 250 == 0 or
-        epoch == 0
-    ):
-
-        model.eval()
-
-        with torch.no_grad():
-
-            mae = (
-                model(X) - Y
-            ).abs().mean().item()
-
-        print(
-            f"Epoch {epoch+1:4d} | "
-            f"Loss: {total_loss:.6f} | "
-            f"MAE: {mae*100:.2f} percentile pts"
-        )
 
 # ------------------------------------------------------------
 # EVALUATE
 # ------------------------------------------------------------
 
-model.eval()
+preds = model.predict(
+    X,
+    verbose=0
+).flatten()
 
-with torch.no_grad():
-
-    preds = model(X).squeeze().numpy()
-
-errors = np.abs(preds - ys) * 100
+errors = np.abs(
+    preds - Y
+) * 100
 
 print(
     f"\nFinal MAE: "
@@ -433,77 +390,38 @@ print(
 )
 
 # ------------------------------------------------------------
-# SAVE PT MODEL
+# SAVE KERAS MODEL
 # ------------------------------------------------------------
 
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-avg_N = float(
-    np.mean(list(n_lookup.values()))
+model.save(
+    "output/ranknet.keras"
 )
 
-torch.save({
-
-    "model_state": model.state_dict(),
-
-    "meta": {
-
-        "input_dim": 3,
-
-        "avg_N": avg_N,
-
-        "feature_names": [
-            "score_strength",
-            "max_marks_norm",
-            "difficulty_proxy"
-        ]
-    }
-
-}, OUTPUT_DIR / "ranknet.pt")
-
 print(
-    "\nSaved → output/ranknet.pt"
+    "\nSaved → output/ranknet.keras"
 )
 
 # ------------------------------------------------------------
-# EXPORT SINGLE-FILE ONNX
+# EXPORT TENSORFLOW.JS
 # ------------------------------------------------------------
 
-dummy = torch.tensor(
-    [[0.5, 1.0, 0.5]],
-    dtype=torch.float32
+print(
+    "\nExporting TensorFlow.js model..."
 )
 
-onnx_path = OUTPUT_DIR / "ranknet.onnx"
+os.system(
 
-torch.onnx.export(
+    "tensorflowjs_converter "
+    "--input_format=keras "
+    "output/ranknet.keras "
+    "output/tfjs_model"
 
-    model,
-    dummy,
-
-    str(onnx_path),
-
-    export_params=True,
-
-    opset_version=18,
-
-    do_constant_folding=True,
-
-    input_names=["x"],
-
-    output_names=["percentile"],
-
-    dynamo=False
 )
 
 print(
-    "Saved → output/ranknet.onnx"
+    "Saved → output/tfjs_model/"
 )
 
 print(
-    f"\nAverage N estimate: {avg_N:.0f}"
-)
-
-print(
-    "Training complete."
+    "\nTraining complete."
 )
