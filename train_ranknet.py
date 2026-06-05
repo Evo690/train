@@ -71,9 +71,18 @@ for sf in student_files:
         N    = test["rank"] / (1 - test["percentile"] / 100)
         if name not in n_lookup:
             n_lookup[name] = []
-        n_lookup[name].append(N)
+        n_lookup[name].append((N, test["percentile"]))
 
-n_lookup = {k: float(np.mean(v)) for k, v in n_lookup.items()}
+n_lookup_averaged = {}
+for name, values in n_lookup.items():
+    # Filter out extreme percentiles (under 5% or over 95%) to avoid rounding math sensitivity
+    robust_values = [v[0] for v in values if 5.0 <= v[1] <= 95.0]
+    if robust_values:
+        n_lookup_averaged[name] = float(np.mean(robust_values))
+    else:
+        n_lookup_averaged[name] = float(np.mean([v[0] for v in values]))
+
+n_lookup = n_lookup_averaged
 avg_N    = float(np.mean(list(n_lookup.values())))
 print(f"N lookup built for {len(n_lookup)} tests | avg N: {avg_N:.0f}")
 
@@ -158,6 +167,7 @@ else:
 # ── Build training points ─────────────────────────────────────────────────────
 
 points = []
+added_keys = set()
 
 # Leaderboard points
 for test in lb_data:
@@ -178,6 +188,10 @@ for test in lb_data:
         score = entry.get("score")
         rank  = entry.get("rank")
         if score is None or rank is None:  continue
+
+        key = (name, score, rank)
+        if key in added_keys:              continue
+        added_keys.add(key)
 
         y = 1.0 - (rank / N)
         if not (0 < y < 1.0):             continue
@@ -202,6 +216,10 @@ for sf in student_files:
         name     = test["testName"]
         maxMarks = test.get("maxMarks")
         if not maxMarks:                                           continue
+
+        key = (name, test["score"], test["rank"])
+        if key in added_keys:                                      continue
+        added_keys.add(key)
 
         lb = next((l for l in lb_data if l["testName"] == name), None)
         if not lb or not lb.get("avg") or not lb.get("topper"):   continue
@@ -288,37 +306,59 @@ def make_model():
 
 model = make_model()
 
-model.compile(
-    optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
-    loss="huber",        # robust to the few noisy labels in the dataset
-    metrics=["mae"]
-)
-
 callbacks = [
     tf.keras.callbacks.EarlyStopping(
         monitor="val_mae",
         patience=500,
         restore_best_weights=True,
-        verbose=1,
+        verbose=0,
     ),
     tf.keras.callbacks.ReduceLROnPlateau(
         monitor="val_mae",
         factor=0.5,
         patience=150,
         min_lr=1e-6,
-        verbose=1,
+        verbose=0,
     ),
 ]
 
-history = model.fit(
-    X_tr, Y_tr,
-    epochs=4000,
-    batch_size=8,
-    validation_data=(X_val, Y_val),
-    callbacks=callbacks,
-    verbose=0,
-)
-print(f"Stopped at epoch {len(history.history['loss'])}")
+best_val_mae = float("inf")
+best_model = None
+
+NUM_RUNS = 10
+print(f"\nTraining {NUM_RUNS} model seeds to select the best one...")
+
+for run in range(NUM_RUNS):
+    run_seed = SEED + run
+    np.random.seed(run_seed)
+    tf.random.set_seed(run_seed)
+    
+    model_run = make_model()
+    model_run.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
+        loss="mae",
+        metrics=["mae"]
+    )
+    
+    history_run = model_run.fit(
+        X_tr, Y_tr,
+        epochs=4000,
+        batch_size=8,
+        validation_data=(X_val, Y_val),
+        callbacks=callbacks,
+        verbose=0,
+    )
+    
+    val_mae = float(np.min(history_run.history["val_mae"]))
+    epochs_trained = len(history_run.history["loss"])
+    print(f"  Run {run+1}/{NUM_RUNS} | Seed: {run_seed} | Epochs: {epochs_trained} | Val MAE: {val_mae * 100:.4f}%")
+    
+    if val_mae < best_val_mae:
+        best_val_mae = val_mae
+        best_model = model_run
+
+print(f"\nBest model selected with Val MAE: {best_val_mae * 100:.4f}%")
+model = best_model
 
 # ── Evaluate ──────────────────────────────────────────────────────────────────
 
