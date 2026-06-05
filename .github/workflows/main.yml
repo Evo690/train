@@ -1,6 +1,6 @@
 # .github/workflows/train.yml
 
-name: Train RankNeTT
+name: Train RankNet
 
 on:
   push:
@@ -12,8 +12,6 @@ on:
 jobs:
   train:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -36,15 +34,3 @@ jobs:
           name: ranknet-model
           path: output/ranknet/
           retention-days: 90
-
-      - name: Commit and push trained model
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add output/ranknet/
-          if git diff --cached --quiet; then
-            echo "No changes in model. Skipping commit."
-          else
-            git commit -m "Auto-update trained RankNet model [skip ci]"
-            git push
-          fi
