@@ -259,14 +259,14 @@ print(f"\nTrain: {len(X_tr)}  Val: {len(X_val)}")
 # Small dataset → small network + L2 + Dropout to fight overfitting.
 # swish activation generalises better than tanh for this shape of data.
 
-L2 = 2e-4
+L2 = 1e-6
 
 def make_model():
     return tf.keras.Sequential([
         tf.keras.layers.Input(shape=(4,)),
 
         tf.keras.layers.Dense(
-            64, activation="swish",
+            128, activation="swish",
             kernel_regularizer=tf.keras.regularizers.l2(L2),
             kernel_initializer="he_normal"
         ),
@@ -297,14 +297,14 @@ model.compile(
 callbacks = [
     tf.keras.callbacks.EarlyStopping(
         monitor="val_mae",
-        patience=250,
+        patience=500,
         restore_best_weights=True,
         verbose=1,
     ),
     tf.keras.callbacks.ReduceLROnPlateau(
         monitor="val_mae",
         factor=0.5,
-        patience=80,
+        patience=150,
         min_lr=1e-6,
         verbose=1,
     ),
@@ -313,7 +313,7 @@ callbacks = [
 history = model.fit(
     X_tr, Y_tr,
     epochs=4000,
-    batch_size=16,          # smaller batch → noisier gradients → less overfitting
+    batch_size=8,
     validation_data=(X_val, Y_val),
     callbacks=callbacks,
     verbose=0,
