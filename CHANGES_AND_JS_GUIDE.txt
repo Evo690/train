@@ -1,0 +1,219 @@
+RANKNET MODEL — CHANGES & JS MIGRATION GUIDE
+============================================================
+Generated: 2026-06-05
+
+
+╔══════════════════════════════════════════════════════════╗
+║  SECTION 1 — WHAT CHANGED IN train_ranknet.py           ║
+╚══════════════════════════════════════════════════════════╝
+
+1. Z-SCORE SQUASHING  (normalize_input)
+   ─────────────────────────────────────
+   BEFORE:  z = (score - avg) / sigma          ← unbounded, can be ±10
+   AFTER:   z_sq = tanh(z / 3.0)              ← always in (-1, 1)
+
+   WHY: A z of 8 used to crush the other three features in scale.
+        tanh/3 keeps outlier top-scorers meaningful but not dominant.
+
+2. FEATURE STANDARDIZATION  (new block before model)
+   ────────────────────────────────────────────────────
+   BEFORE:  raw features fed directly to Dense layers
+   AFTER:   X = (X_raw - feat_mean) / feat_std
+            feat_mean and feat_std computed on the whole dataset
+            and saved to meta.json → normalization section
+
+   WHY: Even after per-feature hand-tuning, the four inputs live
+        on very different scales. Standardizing to ~N(0,1) helps
+        Adam converge faster and prevents one feature from dominating
+        gradient updates.
+
+3. REMOVED BATCH NORMALIZATION
+   ────────────────────────────
+   No BatchNormalization layers — as requested.
+   L2 regularization + Dropout handle regularization instead.
+
+4. L2 REGULARIZATION  (all Dense layers)
+   ────────────────────────────────────────
+   BEFORE:  no regularization on weights
+   AFTER:   kernel_regularizer = L2(2e-4) on all hidden layers
+
+   WHY: The dataset is small (~hundreds of points). L2 penalises
+        large weights and reduces overfitting without needing BN.
+
+5. DROPOUT
+   ─────────
+   BEFORE:  no dropout
+   AFTER:   Dropout(0.15) after first two hidden layers
+
+   WHY: Light dropout (15%) adds noise during training so the model
+        cannot memorise individual training examples.
+
+6. ACTIVATION: tanh → swish
+   ─────────────────────────
+   BEFORE:  Dense(..., activation="tanh")
+   AFTER:   Dense(..., activation="swish") + kernel_initializer="he_normal"
+
+   WHY: swish (x * sigmoid(x)) is smoother than tanh, never fully
+        saturates, and consistently outperforms tanh on small networks.
+        he_normal is the correct initialiser for swish/relu-family.
+
+7. LOSS FUNCTION: mse → huber
+   ─────────────────────────────
+   BEFORE:  loss="mse"
+   AFTER:   loss="huber"
+
+   WHY: MSE squares large errors, so a handful of noisy/wrong labels
+        can pull the whole model. Huber is linear for large errors
+        → more robust.
+
+8. SMALLER BATCH SIZE: 32 → 16
+   ──────────────────────────────
+   BEFORE:  batch_size=32
+   AFTER:   batch_size=16
+
+   WHY: With a small dataset, smaller batches give noisier gradients
+        which act as a natural regulariser and help escape sharp minima.
+
+9. LEARNING RATE: flat 1e-3 → CosineDecay + ReduceLROnPlateau
+   ────────────────────────────────────────────────────────────
+   BEFORE:  Adam(lr=1e-3), fixed for all epochs
+   AFTER:   CosineDecay(1e-3 → 1e-5 over 4000 steps)
+            ReduceLROnPlateau halves LR if val_mae stalls for 80 epochs
+
+   WHY: Annealing LR lets the model take big steps early and then
+        fine-tune later. Without it the model bounces around a good
+        minimum instead of settling.
+
+10. EARLY STOPPING  (new)
+    ─────────────────────
+    Monitors val_mae, patience=200, restores best weights automatically.
+    WHY: Prevents the model from training past its best generalisation
+         point. Also saves time — no need to guess the right epoch count.
+
+11. TRAIN / VALIDATION SPLIT  (new)
+    ──────────────────────────────────
+    85% train, 15% validation.
+    BEFORE:  trained and evaluated on 100% of data → reported MAE
+             was in-sample (too optimistic).
+    AFTER:   Train MAE and Val MAE both reported separately so you can
+             see if the model is actually generalising.
+
+12. meta.json — NEW FIELDS
+    ─────────────────────────
+    The saved meta.json now includes:
+
+    "normalization": {
+        "feat_mean": [m0, m1, m2, m3],
+        "feat_std":  [s0, s1, s2, s3]
+    }
+
+    These four mean/std values MUST be applied in JS before running
+    inference. See Section 2 below.
+
+
+╔══════════════════════════════════════════════════════════╗
+║  SECTION 2 — WHAT TO CHANGE IN YOUR JS CODE            ║
+╚══════════════════════════════════════════════════════════╝
+
+Your JS inference currently builds 4 input features and feeds them
+straight to the model. You now need TWO extra steps:
+
+  STEP A — change z calculation
+  STEP B — standardize all 4 features using meta.json values
+
+─────────────────────────────────────────────────────────────
+STEP A — z_squashed  (replaces raw z)
+─────────────────────────────────────────────────────────────
+
+BEFORE (what you probably have):
+  const z = (score - avg) / sigma;
+
+AFTER:
+  const zRaw = (score - avg) / sigma;
+  const z_sq = Math.tanh(zRaw / 3.0);   // <-- use z_sq, not z
+
+─────────────────────────────────────────────────────────────
+STEP B — feature standardization using meta.json
+─────────────────────────────────────────────────────────────
+
+Load meta.json once (you probably already do this for avg_N etc.):
+
+  const meta = await (await fetch("output/ranknet/meta.json")).json();
+  const { feat_mean, feat_std } = meta.normalization;
+  // feat_mean = [m0, m1, m2, m3]
+  // feat_std  = [s0, s1, s2, s3]
+
+Then before feeding to the model:
+
+  // Build raw feature vector (same order as training)
+  const raw = [z_sq, x_norm, difficulty, maxMarks_norm];
+
+  // Standardize every feature
+  const input = raw.map((v, i) => (v - feat_mean[i]) / feat_std[i]);
+
+  // Feed to model
+  const inputTensor = tf.tensor2d([input]);
+  const predTensor  = model.predict(inputTensor);
+  const percentile  = (await predTensor.data())[0];  // 0-1
+
+─────────────────────────────────────────────────────────────
+FULL INFERENCE SNIPPET (drop-in)
+─────────────────────────────────────────────────────────────
+
+  // ── constants from meta.json ──────────────────────────────
+  const { slope_tgn, intercept_tgn, slope_k, intercept_k } =
+        meta.stat_constants;
+  const { feat_mean, feat_std } = meta.normalization;
+
+  function estimateTopper(avg, maxMarks) {
+    const difficulty  = avg / maxMarks;
+    const gapNorm     = slope_tgn * difficulty + intercept_tgn;
+    return Math.min(avg + gapNorm * maxMarks, maxMarks);
+  }
+
+  function dynamicK(difficulty) {
+    return slope_k * difficulty + intercept_k;
+  }
+
+  function buildFeatures(score, avg, maxMarks) {
+    const difficulty    = avg / maxMarks;
+    const topper        = estimateTopper(avg, maxMarks);
+    const k             = dynamicK(difficulty);
+    const sigma         = k > 0 ? (topper - avg) / k : 1.0;
+    const zRaw          = sigma > 0 ? (score - avg) / sigma : 0.0;
+    const z_sq          = Math.tanh(zRaw / 3.0);          // NEW
+    const gap           = topper - avg;
+    let   x_norm        = gap > 0 ? (score - avg) / gap : 0.0;
+    x_norm              = Math.max(0.01, Math.min(x_norm, 1.0));
+    const maxMarks_norm = maxMarks / 300.0;
+
+    // raw features in training order: [z_sq, x_norm, difficulty, maxMarks_norm]
+    const raw = [z_sq, x_norm, difficulty, maxMarks_norm];
+
+    // standardize using meta.normalization values               // NEW
+    return raw.map((v, i) => (v - feat_mean[i]) / feat_std[i]);
+  }
+
+  // ── run inference ─────────────────────────────────────────
+  async function predictPercentile(score, avg, maxMarks) {
+    const features    = buildFeatures(score, avg, maxMarks);
+    const inputTensor = tf.tensor2d([features]);
+    const predTensor  = model.predict(inputTensor);
+    const [percentile] = await predTensor.data();
+    inputTensor.dispose();
+    predTensor.dispose();
+    return percentile;   // 0.0 – 1.0  (multiply by 100 for %)
+  }
+
+─────────────────────────────────────────────────────────────
+SUMMARY OF JS CHANGES (quick reference)
+─────────────────────────────────────────────────────────────
+
+  1. z = (score-avg)/sigma          →  z_sq = Math.tanh(zRaw/3)
+  2. Pass [z_sq, x_norm, diff, mm]  to a standardize step first
+  3. Read feat_mean, feat_std from meta.json → normalization
+  4. standardized[i] = (raw[i] - feat_mean[i]) / feat_std[i]
+  5. Feed standardized array to model (NOT the raw array)
+
+Everything else in your JS (model loading, output interpretation,
+avg_N lookup) stays the same.

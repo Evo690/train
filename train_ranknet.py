@@ -270,14 +270,12 @@ def make_model():
             kernel_regularizer=tf.keras.regularizers.l2(L2),
             kernel_initializer="he_normal"
         ),
-        tf.keras.layers.Dropout(0.15),
 
         tf.keras.layers.Dense(
             64, activation="swish",
             kernel_regularizer=tf.keras.regularizers.l2(L2),
             kernel_initializer="he_normal"
         ),
-        tf.keras.layers.Dropout(0.15),
 
         tf.keras.layers.Dense(
             32, activation="swish",
@@ -290,15 +288,8 @@ def make_model():
 
 model = make_model()
 
-# Cosine-annealed LR: warm start at 1e-3, cools to 1e-5
-lr_sched = tf.keras.optimizers.schedules.CosineDecay(
-    initial_learning_rate=1e-3,
-    decay_steps=4000,
-    alpha=1e-2,
-)
-
 model.compile(
-    optimizer=tf.keras.optimizers.Adam(lr_sched),
+    optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
     loss="huber",        # robust to the few noisy labels in the dataset
     metrics=["mae"]
 )
@@ -306,7 +297,7 @@ model.compile(
 callbacks = [
     tf.keras.callbacks.EarlyStopping(
         monitor="val_mae",
-        patience=200,
+        patience=250,
         restore_best_weights=True,
         verbose=1,
     ),
