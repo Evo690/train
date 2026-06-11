@@ -386,10 +386,10 @@ model.summary()
 
 callbacks = [
     tf.keras.callbacks.EarlyStopping(
-        monitor="val_loss", patience=50, restore_best_weights=True, verbose=1
+        monitor="val_loss", patience=100, restore_best_weights=True, verbose=1
     ),
     tf.keras.callbacks.ReduceLROnPlateau(
-        monitor="val_loss", factor=0.5, patience=20, min_lr=1e-6, verbose=1
+        monitor="val_loss", factor=0.5, patience=40, min_lr=1e-6, verbose=1
     ),
 ]
 
@@ -397,8 +397,8 @@ print("\n── Training ──────────────────�
 history = model.fit(
     X,
     {"rank": Y_rank, "percentile": Y_pct, "topper": Y_topper},
-    epochs=500,
-    batch_size=min(32, max(8, len(records) // 5)),
+    epochs=1000,
+    batch_size=16, # Smaller batch size for more gradient updates and better generalization
     validation_split=0.2,
     callbacks=callbacks,
     verbose=1,
