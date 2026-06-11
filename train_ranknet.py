@@ -286,7 +286,11 @@ def math_preprocessing(x):
 
     # Mathematical transformations for standardization
     diff = sf - af
-    z    = diff / 0.15
+    
+    # Dynamic standard deviation estimation based on average score fraction
+    # Squeezes standard deviation when the test average is close to 0 or maxMarks.
+    std_dynamic = 0.6 * af * (1.0 - af) + 0.05
+    z    = diff / std_dynamic
     phi  = 0.5 * (1.0 + tf.math.erf(z / 1.41421356)) # Normal CDF prior
     log_sva = tf.math.log(sva + 0.1)                 # Log-scaled score vs average (offset 0.1 for stability)
     lt_norm = lt / 10.0                              # Scale competition log_total
@@ -313,14 +317,14 @@ x = tf.keras.layers.Dense(128, activation="swish", kernel_regularizer=reg, name=
 
 # First Residual Block
 r1 = tf.keras.layers.Dense(128, activation="swish", kernel_regularizer=reg, name="res1_d1")(x)
-r1 = tf.keras.layers.Dropout(0.1, name="res1_drop")(r1)
+r1 = tf.keras.layers.Dropout(0.05, name="res1_drop")(r1)
 r1 = tf.keras.layers.Dense(128, kernel_regularizer=reg, name="res1_d2")(r1)
 x  = tf.keras.layers.add([x, r1], name="res1_add")
 x  = tf.keras.layers.Activation("swish", name="res1_act")(x)
 
 # Second Residual Block
 r2 = tf.keras.layers.Dense(128, activation="swish", kernel_regularizer=reg, name="res2_d1")(x)
-r2 = tf.keras.layers.Dropout(0.1, name="res2_drop")(r2)
+r2 = tf.keras.layers.Dropout(0.05, name="res2_drop")(r2)
 r2 = tf.keras.layers.Dense(128, kernel_regularizer=reg, name="res2_d2")(r2)
 x  = tf.keras.layers.add([x, r2], name="res2_add")
 x  = tf.keras.layers.Activation("swish", name="res2_act")(x)
@@ -358,14 +362,14 @@ model.add_loss(consistency_loss * 1.0)
 model.compile(
     optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
     loss={
-        "rank"      : "mse",
-        "percentile": "mse",
-        "topper"    : "mse",
+        "rank"      : "huber",
+        "percentile": "huber",
+        "topper"    : "huber",
     },
     loss_weights={
-        "rank"      : 1.0,
-        "percentile": 1.0,
-        "topper"    : 0.8,
+        "rank"      : 1.5,
+        "percentile": 1.5,
+        "topper"    : 0.2,
     },
     metrics={
         "rank"      : ["mae"],
@@ -382,10 +386,10 @@ model.summary()
 
 callbacks = [
     tf.keras.callbacks.EarlyStopping(
-        monitor="val_loss", patience=30, restore_best_weights=True, verbose=1
+        monitor="val_loss", patience=50, restore_best_weights=True, verbose=1
     ),
     tf.keras.callbacks.ReduceLROnPlateau(
-        monitor="val_loss", factor=0.5, patience=15, min_lr=1e-6, verbose=1
+        monitor="val_loss", factor=0.5, patience=20, min_lr=1e-6, verbose=1
     ),
 ]
 
